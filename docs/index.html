@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>猜數字遊戲</title>
+  <style>
+    :root{
+      --bg: #0f172a;        /* 深色背景 */
+      --fg: #e2e8f0;        /* 文字 */
+      --muted:#94a3b8;      /* 次要文字 */
+      --card:#111827;       /* 卡片底 */
+      --accent:#22c55e;     /* 贏 */
+      --warn:#f59e0b;       /* 提示 */
+      --err:#ef4444;        /* 錯誤/輸 */
+      --info:#3b82f6;       /* 一般重點 */
+      --chip:#1f2937;       /* 紀錄籤 */
+      --border:#334155;     /* 邊框 */
+    }
+    @media (prefers-color-scheme: light){
+      :root{
+        --bg:#f8fafc;
+        --fg:#0f172a;
+        --muted:#475569;
+        --card:#ffffff;
+        --chip:#f1f5f9;
+        --border:#e2e8f0;
+      }
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: radial-gradient(1200px 600px at 70% -10%, #1e293b 0%, var(--bg) 60%);
+      color:var(--fg);
+      display:grid;
+      place-items:center;
+      padding:20px;
+    }
+    .wrap{
+      width:min(920px, 100%);
+      display:grid;
+      gap:16px;
+    }
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:18px;
+      padding:20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    h1{
+      margin:0 0 6px;
+      letter-spacing:.02em;
+      font-weight:800;
+      font-size:clamp(22px, 3.8vw, 36px);
+    }
+    .sub{color:var(--muted); margin-top:0}
+    .row{display:flex; flex-wrap:wrap; gap:12px; align-items:center}
+    .row > *{flex:1}
+    .row .shrink{flex:0}
+    label{font-size:.9rem; color:var(--muted)}
+    input[type="number"], select{
+      width:100%;
+      padding:12px 14px;
+      background:transparent;
+      color:var(--fg);
+      border:1px solid var(--border);
+      border-radius:12px;
+      outline:none;
+    }
+    input[type="number"]:focus, select:focus{border-color:var(--info); box-shadow:0 0 0 4px rgba(59,130,246,.15)}
+    .btn{
+      appearance:none;
+      border:1px solid var(--border);
+      padding:12px 18px;
+      border-radius:12px;
+      background:linear-gradient(180deg, #0ea5e9, #2563eb);
+      color:#fff;
+      font-weight:700;
+      cursor:pointer;
+      transition:transform .05s ease, filter .2s ease, opacity .2s ease;
+      white-space:nowrap;
+    }
+    .btn.secondary{
+      background:transparent;
+      color:var(--fg);
+    }
+    .btn:disabled{opacity:.5; cursor:not-allowed; filter:grayscale(.2)}
+    .btn:active{transform:translateY(1px)}
+    .status{
+      display:flex; align-items:center; gap:10px;
+      padding:12px 14px; border-radius:12px; border:1px dashed var(--border);
+      background: rgba(59,130,246,.07);
+      min-height:56px;
+    }
+    .status.ok{background: rgba(34,197,94,.10); border-color:rgba(34,197,94,.45)}
+    .status.warn{background: rgba(245,158,11,.10); border-color:rgba(245,158,11,.45)}
+    .status.err{background: rgba(239,68,68,.10); border-color:rgba(239,68,68,.45)}
+    .status b{font-weight:800}
+    .meter{
+      height:10px; width:100%;
+      background:linear-gradient(90deg, #0ea5e9, #22c55e);
+      border-radius:999px;
+      transform-origin:left;
+      transform:scaleX(var(--x, 0));
+      transition:transform .3s ease;
+    }
+    .hist{display:flex; flex-wrap:wrap; gap:8px}
+    .chip{
+      background:var(--chip);
+      border:1px solid var(--border);
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:.9rem;
+    }
+    .footer{display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; color:var(--muted)}
+    .kbd{
+      border:1px solid var(--border);
+      background:var(--chip);
+      padding:2px 6px; border-radius:6px; font-weight:700;
+    }
+    .sr{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <h1>猜數字遊戲</h1>
+      <p class="sub">從指定範圍內猜出隨機整數。用最少次數完成挑戰！</p>
+
+      <!-- 遊戲設定 -->
+      <div class="row" style="margin-top:6px">
+        <div>
+          <label for="range">範圍</label>
+          <select id="range" aria-label="選擇數字範圍">
+            <option value="100">1 ~ 100（經典）</option>
+            <option value="500">1 ~ 500（困難）</option>
+            <option value="1000">1 ~ 1000（地獄）</option>
+            <option value="50">1 ~ 50（熱身）</option>
+          </select>
+        </div>
+        <div>
+          <label for="tries">最大次數</label>
+          <select id="tries" aria-label="選擇最大嘗試次數">
+            <option value="8">8 次</option>
+            <option value="10" selected>10 次</option>
+            <option value="12">12 次</option>
+            <option value="15">15 次</option>
+          </select>
+        </div>
+        <div class="shrink" style="align-self:end">
+          <button id="newGame" class="btn" type="button" aria-label="開始新遊戲">開始 / 重來</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 互動區 -->
+    <section class="card">
+      <div class="row">
+        <div>
+          <label for="guess">輸入你的猜測</label>
+          <input id="guess" type="number" inputmode="numeric" placeholder="輸入數字後按 Enter 或點擊『猜！』" min="1" />
+        </div>
+        <div class="shrink" style="align-self:end">
+          <button id="submit" class="btn" type="button">猜！</button>
+        </div>
+        <div class="shrink" style="align-self:end">
+          <button id="hintBtn" class="btn secondary" type="button" title="消耗 1 次機會換一個提示">提示</button>
+        </div>
+      </div>
+
+      <div id="status" class="status" role="status" aria-live="polite" style="margin-top:12px">
+        準備好了就按 <b>開始 / 重來</b>！
+      </div>
+
+      <div style="margin-top:14px">
+        <div class="meter" id="meter" style="--x: 0"></div>
+        <div class="footer" style="margin-top:8px">
+          <div>剩餘次數：<b id="left">—</b> / <span id="max">—</span></div>
+          <div>範圍：<b id="min">—</b> ~ <b id="maxN">—</b></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 歷史紀錄 -->
+    <section class="card">
+      <h2 style="margin:0 0 8px;font-size:1.1rem">歷史紀錄</h2>
+      <div id="history" class="hist" aria-live="polite" aria-atomic="false"></div>
+      <p class="sub" style="margin-top:10px">小撇步：輸入後直接按 <span class="kbd">Enter</span> 可快速送出。</p>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const $ = (id) => document.getElementById(id);
+      const el = {
+        range: $("range"),
+        tries: $("tries"),
+        newGame: $("newGame"),
+        submit: $("submit"),
+        hintBtn: $("hintBtn"),
+        guess: $("guess"),
+        status: $("status"),
+        left: $("left"),
+        max: $("max"),
+        min: $("min"),
+        maxN: $("maxN"),
+        meter: $("meter"),
+        history: $("history"),
+      };
+
+      /** 遊戲狀態 */
+      const state = {
+        target: null,
+        min: 1,
+        maxN: 100,
+        maxTries: 10,
+        left: 10,
+        started: false,
+        history: [],
+        lowerBound: 1,
+        upperBound: 100,
+      };
+
+      const rnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+      function resetUI() {
+        el.history.innerHTML = "";
+        el.status.className = "status";
+        el.status.textContent = "新遊戲已就緒，祝你好運！";
+        el.left.textContent = state.left;
+        el.max.textContent = state.maxTries;
+        el.min.textContent = state.lowerBound;
+        el.maxN.textContent = state.upperBound;
+        el.meter.style.setProperty("--x", 0);
+        el.guess.value = "";
+        el.guess.placeholder = `請輸入 ${state.lowerBound} ~ ${state.upperBound} 的整數`;
+        el.guess.disabled = false;
+        el.submit.disabled = false;
+        el.hintBtn.disabled = false;
+        el.guess.focus();
+      }
+
+      function startNewGame() {
+        state.maxN = Number(el.range.value);
+        state.maxTries = Number(el.tries.value);
+        state.left = state.maxTries;
+        state.min = 1;
+        state.target = rnd(1, state.maxN);
+        state.history = [];
+        state.started = true;
+        state.lowerBound = 1;
+        state.upperBound = state.maxN;
+        resetUI();
+      }
+
+      function addHistory(n, resultText) {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = `#${state.maxTries - state.left + 1}：${n}（${resultText}）`;
+        el.history.prepend(chip);
+      }
+
+      function setStatus(msg, type = "") {
+        el.status.className = "status " + (type || "");
+        el.status.innerHTML = msg;
+      }
+
+      function setProgress() {
+        const used = state.maxTries - state.left;
+        const x = Math.max(0, Math.min(1, used / state.maxTries));
+        el.meter.style.setProperty("--x", x);
+      }
+
+      function endGame(win) {
+        el.guess.disabled = true;
+        el.submit.disabled = true;
+        el.hintBtn.disabled = true;
+        if (win) {
+          setStatus(`🎉 <b>恭喜！</b> 你在 <b>${state.maxTries - state.left}</b> 次內猜中 <b>${state.target}</b>！`, "ok");
+        } else {
+          setStatus(`😵‍💫 <b>可惜！</b> 正確答案是 <b>${state.target}</b>，下次一定可以！`, "err");
+        }
+      }
+
+      function heatHint(n) {
+        const d = Math.abs(n - state.target);
+        if (d === 0) return "命中！";
+        const ratio = d / (state.maxN - 1);
+        if (ratio <= 0.02) return "🔥 超燙（非常接近）";
+        if (ratio <= 0.05) return "🌶️ 很燙（很接近）";
+        if (ratio <= 0.1) return "🙂 溫溫的（有點接近）";
+        if (ratio <= 0.2) return "😐 偏遠（再試試）";
+        return "🥶 很冷（差很多）";
+      }
+
+      function validateInput(val) {
+        if (val === "" || val === null) return "請先輸入數字。";
+        const n = Number(val);
+        if (!Number.isInteger(n)) return "請輸入整數。";
+        if (n < state.lowerBound || n > state.upperBound) {
+          return `請輸入 ${state.lowerBound} ~ ${state.upperBound} 的整數。`;
+        }
+        if (state.history.includes(n)) return "這個數字你剛剛猜過了，換個數字吧！";
+        return null;
+      }
+
+      function submitGuess() {
+        if (!state.started) {
+          setStatus("請先按 <b>開始 / 重來</b> 開始新遊戲。", "warn");
+          return;
+        }
+        const val = el.guess.value.trim();
+        const err = validateInput(val);
+        if (err) {
+          setStatus(`⚠️ ${err}`, "warn");
+          return;
+        }
+        const guess = Number(val);
+        state.history.push(guess);
+        state.left--;
+        el.left.textContent = state.left;
+        setProgress();
+
+        if (guess === state.target) {
+          addHistory(guess, "命中");
+          setStatus(`✅ <b>答對了！</b> ${heatHint(guess)}`, "ok");
+          endGame(true);
+          return;
+        }
+
+        // 高低提示 + 動態調整建議區間
+        if (guess > state.target) {
+          state.upperBound = Math.min(state.upperBound, guess - 1);
+          addHistory(guess, "太大");
+          setStatus(`⬇️ 太大了！建議改猜 <b>${state.lowerBound} ~ ${state.upperBound}</b>。<br>${heatHint(guess)}`, "warn");
+        } else {
+          state.lowerBound = Math.max(state.lowerBound, guess + 1);
+          addHistory(guess, "太小");
+          setStatus(`⬆️ 太小了！建議改猜 <b>${state.lowerBound} ~ ${state.upperBound}</b>。<br>${heatHint(guess)}`, "warn");
+        }
+
+        el.min.textContent = state.lowerBound;
+        el.maxN.textContent = state.upperBound;
+
+        if (state.left <= 0) {
+          endGame(false);
+        } else {
+          el.guess.select();
+          el.guess.focus();
+        }
+      }
+
+      function useHint() {
+        if (!state.started) {
+          setStatus("請先開始遊戲再使用提示。", "warn");
+          return;
+        }
+        if (state.left <= 1) {
+          setStatus("剩 1 次就留著搏一把吧！", "warn");
+          return;
+        }
+        // 消耗 1 次，給方向 + 縮小區間
+        state.left--;
+        el.left.textContent = state.left;
+        setProgress();
+
+        const mid = Math.floor((state.lowerBound + state.upperBound) / 2);
+        let msg;
+        if (state.target > mid) {
+          state.lowerBound = Math.max(state.lowerBound, mid + 1);
+          msg = `提示：答案在 <b>${state.lowerBound}</b> 到 <b>${state.upperBound}</b> 的<b>右半邊</b>。`;
+        } else {
+          state.upperBound = Math.min(state.upperBound, mid);
+          msg = `提示：答案在 <b>${state.lowerBound}</b> 到 <b>${state.upperBound}</b> 的<b>左半邊</b>。`;
+        }
+        el.min.textContent = state.lowerBound;
+        el.maxN.textContent = state.upperBound;
+        setStatus(`🪄 ${msg}`, "info");
+        el.guess.focus();
+      }
+
+      // 綁定事件
+      el.newGame.addEventListener("click", startNewGame);
+      el.submit.addEventListener("click", submitGuess);
+      el.hintBtn.addEventListener("click", useHint);
+      el.guess.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") submitGuess();
+      });
+
+      // 初始狀態（等待開始）
+      setStatus("準備好了就按 <b>開始 / 重來</b>！");
+
+      // 無障礙：在狀態切換時加上描述用途
+      const infoClass = CSS && CSS.supports && CSS.supports("background: color(display-p3 1 1 1)") ? "info" : "";
+    })();
+  </script>
+</body>
+</html>
